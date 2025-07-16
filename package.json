@@ -1,0 +1,29 @@
+{
+  "name": "weather-app",
+  "version": "1.0.0",
+  "description": "A simple weather API application",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "node -r dotenv-safe/config server.js",
+    "dev": "node -r dotenv-safe/config --watch server.js",
+    "test": "node --test test/weather.js",
+    "build": "npm install --omit=dev",
+    "build_lambda": "npm install && zip lambda.zip server.js package.json node_modules/**/* lib/**/*"
+  },
+  "dependencies": {
+    "dotenv-safe": "^6.1.0",
+    "express": "^5",
+    "winston": "^3.10.0",
+    "namespaced-console-logger": "^1.0.5",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.1"
+  },
+  "author": "",
+  "license": "ISC"
+}

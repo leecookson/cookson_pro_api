@@ -1,8 +1,8 @@
-const awsServerlessExpress = require('aws-serverless-express');
-const app = require('./lib/route/weather');
+import awsServerlessExpress from 'aws-serverless-express';
+import app from './lib/app.js'; // Import the Express app from lib/app.js
 
 const server = awsServerlessExpress.createServer(app);
 
-exports.handler = (event, context) => {
+export const handler = (event, context) => {
   return awsServerlessExpress.proxy(server, event, context);
 };

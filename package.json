@@ -12,7 +12,7 @@
     "dev": "node -r dotenv-safe/config --watch server.js",
     "test": "node --test test/weather.js",
     "build": "npm install --omit=dev",
-    "build_lambda": "npm install && zip lambda.zip server.js package.json node_modules/**/* lib/**/*"
+    "build_lambda": "npm install && zip -q lambda.zip handler.js package.json node_modules/**/* lib/**/*"
   },
   "dependencies": {
     "dotenv-safe": "^6.1.0",

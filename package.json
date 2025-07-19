@@ -12,7 +12,7 @@
     "dev": "node -r dotenv-safe/config --watch server.js .env",
     "test": "node --test test/weather.js",
     "build": "npm install --omit=dev",
-    "build_lambda": "npm install --omit-dev && zip -q lambda.zip handler.js package.json node_modules lib"
+    "build_lambda": "npm install --omit-dev && zip -qr lambda.zip handler.js package.json node_modules lib"
   },
   "dependencies": {
     "aws-serverless-express": "^3.4.0",

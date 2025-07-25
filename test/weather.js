@@ -22,12 +22,17 @@ test.describe('Weather API (/api/v1/weather)', () => {
       source: 'Mocked Weather API'
     };
 
-    // Mock the weatherService.getWeatherByCoordinates method
-    // It will be automatically restored after this test case by node:test's t.mock.method
-    t.mock.method(weatherService, 'getWeatherByCoordinates', async (lat, long) => {
-      assert.strictEqual(lat, mockLat, 'Latitude passed to service should match');
-      assert.strictEqual(long, mockLong, 'Longitude passed to service should match');
-      return mockWeatherData;
+    // Mock the global fetch function
+    t.mock.method(globalThis, 'fetch', async (url) => {
+      const apiKey = process.env.OPEN_API_KEY; // Assuming API key is available in process.env for testing
+      const expectedUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${mockLat}&lon=${mockLong}&units=metric&appid=${apiKey}`;
+      assert.strictEqual(url, expectedUrl, 'The correct API URL should be fetched.');
+
+      // Return a mock Response object
+      return new Response(JSON.stringify(mockWeatherData), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
     });
 
     const response = await supertest(app)
@@ -71,10 +76,17 @@ test.describe('Weather API (/api/v1/weather)', () => {
     const long = 0; // Using the coordinates that our mock service returns null for
 
     // Mock the service to return null
-    t.mock.method(weatherService, 'getWeatherByCoordinates', async () => {
-      return null;
-    });
+    t.mock.method(globalThis, 'fetch', async (url) => {
+      const apiKey = process.env.OPEN_API_KEY;
+      const expectedUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${long}&units=metric&appid=${apiKey}`;
+      assert.strictEqual(url, expectedUrl, 'The correct API URL should be fetched.');
 
+      // Return a mock Response object that signifies no data found (e.g., 404 from external API)
+      return new Response(JSON.stringify({ cod: '404', message: 'city not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
     await supertest(app)
       .get(`/api/v1/weather/${lat}/${long}`)
       .expect(404)
@@ -90,8 +102,9 @@ test.describe('Weather API (/api/v1/weather)', () => {
     const long = 20;
     const errorMessage = 'Internal Service Error';
 
-    // Mock the service to throw an error
-    t.mock.method(weatherService, 'getWeatherByCoordinates', async () => {
+    // Mock the global fetch function to simulate a network error or an unhandled 500 from the external API
+    t.mock.method(globalThis, 'fetch', async () => {
+      // Simulate a network error or an unhandled 500 from the external API
       throw new Error(errorMessage);
     });
 
@@ -103,6 +116,56 @@ test.describe('Weather API (/api/v1/weather)', () => {
     // You might want to make your error handler more specific in the future
     // and then assert the specific error message here.
     assert.strictEqual(response.text, 'Something broke!');
+  });
+
+  // --- Tests Demonstrating Fetch Mocking ---
+
+  test.it('should return 200 by mocking fetch for valid coordinates', async (t) => {
+    const mockLat = 40.7128;
+    const mockLong = -74.0060;
+    const mockApiResponse = {
+      coord: { lon: mockLong, lat: mockLat },
+      weather: [{ id: 800, main: 'Clear', description: 'clear sky', icon: '01d' }],
+      main: { temp: 25.3, feels_like: 25.1, temp_min: 23.8, temp_max: 26.7, pressure: 1012, humidity: 45 },
+      name: 'New York',
+    };
+    const apiKey = process.env.OPEN_API_KEY; // Loaded by -r dotenv-safe/config
+
+    // Mock the global fetch function
+    t.mock.method(globalThis, 'fetch', async (url) => {
+      const expectedUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${mockLat}&lon=${mockLong}&units=metric&appid=${apiKey}`;
+      assert.strictEqual(url, expectedUrl, 'The correct API URL should be fetched.');
+
+      // Return a mock Response object
+      return new Response(JSON.stringify(mockApiResponse), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    // This test now goes through the route to the *actual* service.
+    // The service's `fetch` call is intercepted by our mock above.
+    const response = await supertest(app)
+      .get(`/api/v1/weather/${mockLat}/${mockLong}`)
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    assert.deepStrictEqual(response.body, mockApiResponse, 'Response body should match the mocked API response');
+  });
+
+  test.it('should handle external API errors by mocking fetch to return a non-200 status', async (t) => {
+    const mockLat = 1.1;
+    const mockLong = 2.2;
+
+    // Mock fetch to simulate an external API failure (e.g., invalid API key)
+    t.mock.method(globalThis, 'fetch', async () => {
+      return new Response('Invalid API key', { status: 401, statusText: 'Unauthorized' });
+    });
+
+    // The service should throw an error, which the app's central error handler catches.
+    await supertest(app)
+      .get(`/api/v1/weather/${mockLat}/${mockLong}`)
+      .expect(500);
   });
 
   // Add an after hook to ensure the process exits cleanly after all tests in this describe block

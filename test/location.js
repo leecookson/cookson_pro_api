@@ -26,9 +26,16 @@ test.describe('Location API (/api/v1/location)', () => {
       query: '8.8.8.8'
     };
 
-    // Mock the locationService.getLocationByIp method
-    t.mock.method(locationService, 'getLocationByIp', async (ipAddress) => {
-      assert.strictEqual(ipAddress, mockIp, 'IP address passed to service should match');
+    // Mock the global fetch function
+    t.mock.method(globalThis, 'fetch', async (url) => {
+      const expectedUrl = `http://ip-api.com/json/${mockIp}`;
+      assert.strictEqual(url, expectedUrl, 'The correct API URL should be fetched.');
+
+      // Return a mock Response object
+      return new Response(JSON.stringify(mockLocationData), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
       return mockLocationData;
     });
 
@@ -51,9 +58,16 @@ test.describe('Location API (/api/v1/location)', () => {
       query: requesterIp
     };
 
-    // Mock the service to handle the local test IP
-    t.mock.method(locationService, 'getLocationByIp', async (ipAddress) => {
-      assert.strictEqual(ipAddress, requesterIp, 'Requester IP address passed to service should match');
+    // Mock the global fetch function
+    t.mock.method(globalThis, 'fetch', async (url) => {
+      const expectedUrl = `http://ip-api.com/json/${requesterIp}`;
+      assert.strictEqual(url, expectedUrl, 'The correct API URL should be fetched.');
+
+      // Return a mock Response object
+      return new Response(JSON.stringify(mockLocationData), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
       return mockLocationData;
     });
 
@@ -84,7 +98,13 @@ test.describe('Location API (/api/v1/location)', () => {
     const privateIp = '10.0.0.1';
     const failResponse = { status: 'fail', message: 'private range', query: privateIp };
 
-    t.mock.method(locationService, 'getLocationByIp', async () => failResponse);
+    // Mock the global fetch function to return a "fail" status
+    t.mock.method(globalThis, 'fetch', async (url) => {
+      const expectedUrl = `http://ip-api.com/json/${privateIp}`;
+      assert.strictEqual(url, expectedUrl, 'The correct API URL should be fetched.');
+      return new Response(JSON.stringify(failResponse), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    });
+
 
     await supertest(app)
       .get(`/api/v1/location/${privateIp}`)
@@ -98,9 +118,56 @@ test.describe('Location API (/api/v1/location)', () => {
   // Test for a general service error
   test.it('should return 500 if location service throws an error', async (t) => {
     const ip = '1.2.3.4';
-    t.mock.method(locationService, 'getLocationByIp', async () => { throw new Error('External API is down'); });
+    // Mock fetch to simulate a network error or an unhandled 500 from the external API
+    t.mock.method(globalThis, 'fetch', async () => {
+      throw new Error('Failed to fetch');
+    });
     const response = await supertest(app).get(`/api/v1/location/${ip}`).expect(500);
     assert.strictEqual(response.text, 'Something broke!');
+  });
+
+  // --- Tests Demonstrating Fetch Mocking ---
+
+  test.it('should return 200 by mocking fetch for a valid IP address', async (t) => {
+    const mockIp = '8.8.4.4';
+    const mockApiResponse = {
+      status: 'success',
+      country: 'United States',
+      query: '8.8.4.4'
+    };
+
+    // Mock the global fetch function
+    t.mock.method(globalThis, 'fetch', async (url) => {
+      // You can add assertions here to ensure your service is calling the correct URL
+      assert.strictEqual(url, `http://ip-api.com/json/${mockIp}`, 'The correct API URL should be fetched.');
+
+      // Return a mock Response object, which is what fetch resolves to
+      return new Response(JSON.stringify(mockApiResponse), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    // This test now goes through the route to the *actual* service.
+    // The service's `fetch` call is intercepted by our mock above.
+    const response = await supertest(app)
+      .get(`/api/v1/location/${mockIp}`)
+      .expect(200)
+      .expect('Content-Type', /json/);
+
+    assert.deepStrictEqual(response.body, mockApiResponse, 'Response body should match the mocked API response');
+  });
+
+  test.it('should handle external API errors by mocking fetch to return a non-200 status', async (t) => {
+    const mockIp = '1.2.3.4';
+
+    // Mock fetch to simulate an external API failure
+    t.mock.method(globalThis, 'fetch', async () => {
+      return new Response('Service Unavailable', { status: 503, statusText: 'Service Unavailable' });
+    });
+
+    // The service should throw an error, which the app's central error handler catches.
+    await supertest(app).get(`/api/v1/location/${mockIp}`).expect(500);
   });
 
   test.after(async () => process.exit(0));

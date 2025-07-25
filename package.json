@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node -r dotenv-safe/config server.js",
     "dev": "node -r dotenv-safe/config --watch server.js .env",
-    "test": "node -r dotenv-safe/config --test",
+    "test": "LOG_LEVEL=error node -r dotenv-safe/config --test",
     "test:weather": "node -r dotenv-safe/config --test test/weather.js",
     "test:location": "node -r dotenv-safe/config --test test/location.js",
     "test:astro": "node -r dotenv-safe/config --test test/astro.js",

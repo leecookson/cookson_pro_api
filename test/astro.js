@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import supertest from 'supertest';
 import app from '../lib/app.js';
-import astroService from '../lib/service/astro.js';
 
+console.error('LOG_LEVEL', process.env.LOG_LEVEL);
 test.describe('Astronomy API (/api/v1/astro)', () => {
 
   // Test for a successful search by term

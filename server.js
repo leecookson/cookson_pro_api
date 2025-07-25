@@ -4,7 +4,7 @@ import app from './lib/app.js'; // Import the Express app
 
 // --- Application Logger Setup ---
 // Create a root logger instance
-const logger = loggers().get('server');
+const logger = loggers(process.env.LOG_LEVEL || 'info').get('server');
 
 const PORT = process.env.PORT || 3000;
 

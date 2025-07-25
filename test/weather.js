@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import supertest from 'supertest';
 import app from '../lib/app.js'; // Import the exported Express app, added .js
-import weatherService from '../lib/service/weather.js'; // Import the service to mock it, added .js
 
 // Use test.describe for grouping tests
 test.describe('Weather API (/api/v1/weather)', () => {

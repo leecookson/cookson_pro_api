@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import supertest from 'supertest';
 import app from '../lib/app.js';
-import locationService from '../lib/service/location.js';
 
 test.describe('Location API (/api/v1/location)', () => {
 

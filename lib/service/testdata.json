@@ -1,0 +1,42 @@
+[
+  {
+    "style": "inverted",
+    "observer": {
+      "latitude": 40.0713,
+      "longitude": -74.8449,
+      "date": "2025-08-23"
+    },
+    "view": {
+      "type": "constellation",
+      "parameters": {
+        "position": {
+          "equatorial": {
+            "rightAscension": 17.804845405697463,
+            "declination": 40.0713
+          }
+        },
+        "zoom": 5
+      }
+    }
+  },
+  {
+    "style": "inverted",
+    "observer": {
+      "latitude": 33.775867,
+      "longitude": -84.39733,
+      "date": "2019-12-20"
+    },
+    "view": {
+      "type": "area",
+      "parameters": {
+        "position": {
+          "equatorial": {
+            "rightAscension": 14.83,
+            "declination": -15.23
+          }
+        },
+        "zoom": 3
+      }
+    }
+  }
+]

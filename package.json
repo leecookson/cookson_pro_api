@@ -10,10 +10,11 @@
   "scripts": {
     "start": "node -r dotenv-safe/config server.js",
     "dev": "DEV=true node -r dotenv-safe/config --watch server.js .env",
-    "test": "LOG_LEVEL=error node -r dotenv-safe/config --test",
-    "test:weather": "node -r dotenv-safe/config --test test/weather.js",
-    "test:location": "node -r dotenv-safe/config --test test/location.js",
-    "test:astro": "node -r dotenv-safe/config --test test/astro.js",
+    "test": "DEV=true LOG_LEVEL=error node -r dotenv-safe/config --test",
+    "test-only": "DEV=true LOG_LEVEL=error node -r dotenv-safe/config --test --test-only",
+    "test:weather": "DEV=true node -r dotenv-safe/config --test test/weather.js",
+    "test:location": "DEV=true node -r dotenv-safe/config --test test/location.js",
+    "test:astro": "DEV=true node -r dotenv-safe/config --test test/astro.js",
     "build": "npm install --omit=dev",
     "build_lambda": "npm install --omit-dev && zip -qr lambda.zip handler.js package.json node_modules lib"
   },

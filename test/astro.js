@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import supertest from 'supertest';
 import app from '../lib/app.js';
 
-console.error('LOG_LEVEL', process.env.LOG_LEVEL);
 test.describe('Astronomy API (/api/v1/astro)', () => {
 
   // Test for a successful search by term
@@ -81,13 +80,13 @@ test.describe('Astronomy API (/api/v1/astro)', () => {
 
   // --- Parameter Validation Tests ---
 
-  test.it('should return 400 if no parameters are provided', async () => {
+  test.it.only('should return 400 if no parameters are provided', async () => {
     // For GET, an empty query string is equivalent to no parameters
     await supertest(app)
       .get('/api/v1/astro/search')
       .expect(400)
       .then(res => {
-        assert.strictEqual(res.body.error, 'Invalid parameters: Either "term" or both "ra" and "dec" must be provided.');
+        assert.strictEqual(res.body.message, 'Invalid parameters: Either "term" or both "ra" and "dec" must be provided.');
       });
   });
 
@@ -97,7 +96,7 @@ test.describe('Astronomy API (/api/v1/astro)', () => {
       .query({ ra: 10.123 })
       .expect(400)
       .then(res => {
-        assert.strictEqual(res.body.error, 'Invalid parameters: Either "term" or both "ra" and "dec" must be provided.');
+        assert.strictEqual(res.body.message, 'Invalid parameters: Either "term" or both "ra" and "dec" must be provided.');
       });
   });
 
@@ -111,7 +110,7 @@ test.describe('Astronomy API (/api/v1/astro)', () => {
       .query({ term: 'Andromeda', match_type: 'incorrect' })
       .expect(400)
       .then(res => {
-        assert.strictEqual(res.body.error, 'Invalid parameter: "match_type" must be "fuzzy" or "exact".');
+        assert.strictEqual(res.body.message, 'Invalid parameter: "match_type" must be "fuzzy" or "exact".');
       });
   });
 
@@ -121,7 +120,7 @@ test.describe('Astronomy API (/api/v1/astro)', () => {
       .query({ term: 'Galaxy', limit: -5 })
       .expect(400)
       .then(res => {
-        assert.strictEqual(res.body.error, 'Invalid parameter: "limit" must be a positive integer.');
+        assert.strictEqual(res.body.message, 'Invalid parameter: "limit" must be a positive integer.');
       });
   });
 
@@ -167,7 +166,7 @@ test.describe('Astronomy API (/api/v1/astro)', () => {
       .query(mockParams)
       .expect(500);
 
-    assert.strictEqual(response.text, 'Something broke!');
+    assert.strictEqual(response.body.message, 'Something broke!');
   });
 
   // --- Tests Demonstrating Fetch Mocking ---

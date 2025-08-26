@@ -51,8 +51,8 @@ test.describe('Weather API (/api/v1/weather)', () => {
       .expect(400)
       .expect('Content-Type', /json/)
       .then(response => {
-        assert.ok(response.body.error, 'Response should contain an error message');
-        assert.strictEqual(response.body.error, 'Invalid latitude. Must be between -90 and 90.');
+        assert.ok(response.body.message, 'Response should contain an error message');
+        assert.strictEqual(response.body.message, 'Invalid latitude. Must be between -90 and 90.');
       });
   });
 
@@ -65,8 +65,8 @@ test.describe('Weather API (/api/v1/weather)', () => {
       .expect(400)
       .expect('Content-Type', /json/)
       .then(response => {
-        assert.ok(response.body.error, 'Response should contain an error message');
-        assert.strictEqual(response.body.error, 'Invalid longitude. Must be between -180 and 180.');
+        assert.ok(response.body.message, 'Response should contain an error message');
+        assert.strictEqual(response.body.message, 'Invalid longitude. Must be between -180 and 180.');
       });
   });
 
@@ -114,7 +114,7 @@ test.describe('Weather API (/api/v1/weather)', () => {
     // The default error handler sends 'Something broke!'
     // You might want to make your error handler more specific in the future
     // and then assert the specific error message here.
-    assert.strictEqual(response.text, 'Something broke!');
+    assert.strictEqual(response.body.message, 'Something broke!');
   });
 
   // --- Tests Demonstrating Fetch Mocking ---

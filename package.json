@@ -1,5 +1,5 @@
 {
-  "name": "weather-app",
+  "name": "cookson_pro_api",
   "version": "1.0.0",
   "description": "A simple weather API application",
   "main": "server.js",

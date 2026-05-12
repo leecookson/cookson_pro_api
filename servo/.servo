@@ -1,0 +1,16 @@
+{
+  "platform": "nodejs",
+  "tags": {
+    "default": {
+      "owner": "lee@cookson.pro",
+      "bu": "djcs",
+      "product": "webapp",
+      "component": "api",
+      "environment": "dev",
+      "appid": "tbd"
+    },
+    "prod": {
+      "environment": "prod"
+    }
+  }
+}

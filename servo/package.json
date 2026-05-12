@@ -1,0 +1,28 @@
+{
+  "name": "cookson_pro_api_servo",
+  "version": "1.0.0",
+  "description": "cookson.pro API — Servo deployment",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "scripts": {
+    "start": "USE_LOCAL_ENV=true node -r dotenv-safe/config --preserve-symlinks server.js",
+    "dev": "DEV=true USE_LOCAL_ENV=true node -r dotenv-safe/config --preserve-symlinks --watch --watch-path ../lib --watch-path . server.js",
+    "build": "npm install --omit=dev"
+  },
+  "devDependencies": {
+    "dotenv-safe": "^9.1.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "dependencies": {
+    "astronomia": "^4.1.1",
+    "cors": "^2.8.5",
+    "express": "^5",
+    "ipaddr.js": "^2.2.0",
+    "namespaced-console-logger": "^1.0.5",
+    "winston": "^3.17.0"
+  }
+}

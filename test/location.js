@@ -3,8 +3,6 @@ import assert from 'node:assert/strict';
 import supertest from 'supertest';
 import app from '../lib/app.js';
 
-// Mock the LocationService to control isLocalIP behavior
-import locationService from '../lib/service/location.js';
 
 test.describe('Location API (/api/v1/location)', () => {
 
@@ -27,9 +25,6 @@ test.describe('Location API (/api/v1/location)', () => {
       as: 'AS15169 Google LLC',
       query: '8.8.8.8'
     };
-
-    // Mock the global isDevMode to ignore local dev override
-    t.mock.method(locationService.constructor, 'isDevMode', () => false);
 
     // Mock the global fetch function
     t.mock.method(globalThis, 'fetch', async (url) => {
@@ -54,22 +49,20 @@ test.describe('Location API (/api/v1/location)', () => {
 
   // Test for the requester's IP address
   test.it('should return 200 and location data for the requester\'s IP', async (t) => {
-    // supertest sends requests from 127.0.0.1, which req.ip sees as ::ffff:127.0.0.1
-    const requesterIp = '::ffff:127.0.0.1';
+    // In DEV mode, GET / substitutes req.ip (127.0.0.1) with the machine's public IP via whatsMyIP().
+    const publicIp = '1.1.1.1'; // Cloudflare DNS, valid public unicast
     const mockLocationData = {
       status: 'success',
       country: 'Testland',
       city: 'Testville',
-      query: requesterIp
+      query: publicIp
     };
 
     // Mock the global fetch function
     t.mock.method(globalThis, 'fetch', async (url, options) => {
       if (url === 'https://api.ipify.org?format=json') {
-        // First call: whatsMyIP
-        return new Response(JSON.stringify({ ip: requesterIp }), { status: 200 }); // Mock a public IP
-      } else if (url === `http://ip-api.com/json/${requesterIp}`) {
-        // Second call: getLocationByIp with the mocked public IP
+        return new Response(JSON.stringify({ ip: publicIp }), { status: 200 });
+      } else if (url === `http://ip-api.com/json/${publicIp}`) {
         return new Response(JSON.stringify(mockLocationData), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -97,9 +90,6 @@ test.describe('Location API (/api/v1/location)', () => {
       query: '192.0.2.1'
     };
 
-    // Mock the global isDevMode to ignore local dev override
-    t.mock.method(locationService.constructor, 'isDevMode', () => false);
-
     // Mock the global fetch function
     t.mock.method(globalThis, 'fetch', async (url, options) => {
       if (url === 'http://ip-api.com/json/not-a-valid-ip') {
@@ -112,8 +102,6 @@ test.describe('Location API (/api/v1/location)', () => {
         throw new Error(`Unexpected fetch URL: ${url}`);
     });
 
-    const envDEV = process.env.DEV;
-    process.env.DEV = null;
     await supertest(app)
       .get(`/api/v1/location/${invalidIp}`)
       .expect(400)
@@ -122,7 +110,6 @@ test.describe('Location API (/api/v1/location)', () => {
         assert.ok(response.body.message, 'Response should contain an error message');
         assert.strictEqual(response.body.message, 'Invalid public IP address: not-a-valid-ip');
       });
-    process.env.DEV = envDEV;
   });
 
   // Test for an IP that the service can't find (e.g., private range)
@@ -130,9 +117,6 @@ test.describe('Location API (/api/v1/location)', () => {
   test.it.only('should return 400 if location service returns a "fail" status', async (t) => {
     const privateIp = '10.0.0.1';
     const failResponse = { status: 'fail', message: 'private range', query: privateIp };
-
-    // Mock the global isDevMode to ignore local dev override
-    t.mock.method(locationService.constructor, 'isDevMode', () => false);
 
     // Mock the global fetch function to return a "fail" status
     t.mock.method(globalThis, 'fetch', async (url) => {

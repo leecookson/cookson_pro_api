@@ -15,25 +15,30 @@
     "test:weather": "DEV=true node -r dotenv-safe/config --test test/weather.js",
     "test:location": "DEV=true node -r dotenv-safe/config --test test/location.js",
     "test:astro": "DEV=true node -r dotenv-safe/config --test test/astro.js",
+    "test:sunmoon": "DEV=true node -r dotenv-safe/config --test test/sunmoon.js",
+    "test:tonight": "DEV=true node -r dotenv-safe/config --test test/tonight.js",
     "build": "npm install --omit=dev",
     "build_lambda": "npm install --omit-dev && zip -qr lambda.zip handler.js package.json node_modules lib"
   },
   "dependencies": {
-    "astronomia": "^4.1.1",
-    "aws-serverless-express": "^3.4.0",
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.1",
-    "dotenv-safe": "^9.1.0",
-    "express": "^5",
-    "ipaddr.js": "^2.2.0",
-    "namespaced-console-logger": "^1.0.5",
-    "winston": "^3.17.0"
+    "astronomia": "4.2.0",
+    "astronomy-engine": "2.1.19",
+    "aws-serverless-express": "3.4.0",
+    "cors": "2.8.6",
+    "dotenv": "17.2.1",
+    "dotenv-safe": "9.1.0",
+    "express": "5.2.1",
+    "ipaddr.js": "2.5.0",
+    "namespaced-console-logger": "1.1.0",
+    "satellite.js": "7.1.0",
+    "winston": "3.19.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-secrets-manager": "^3.856.0",
-    "supertest": "^7.1.4",
-    "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1"
+    "@aws-sdk/client-dynamodb": "3.1146.0",
+    "@aws-sdk/client-secrets-manager": "3.1146.0",
+    "supertest": "7.3.1",
+    "swagger-jsdoc": "6.3.0",
+    "swagger-ui-express": "5.0.1"
   },
   "author": "",
   "license": "ISC"

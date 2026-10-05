@@ -1,6 +1,6 @@
 # API: Tonight (proposal)
 
-Stargazing conditions for one evening at a location: everything `/sunmoon` returns, plus a viewing window, the cloud forecast for that window, and the objects expected to be viewable in it (starting with ISS passes). The shape is meant to grow. New data sources (seeing, transparency, …) will be added as new top-level sections, and new kinds of object (planets, …) as new entries in `objects`, without changing the existing ones.
+Stargazing conditions for one evening at a location: everything `/sunmoon` returns, plus a viewing window, the cloud forecast for that window, and the objects expected to be viewable in it (ISS passes and the naked-eye planets). The shape is meant to grow. New data sources (seeing, transparency, …) will be added as new top-level sections, and new kinds of object (bright stars, meteor showers, …) as new entries in `objects`, without changing the existing ones.
 
 Status: implemented in `cookson_pro_api` (`lib/service/tonight.js`). The shape is open for frontend feedback before anything depends on it.
 
@@ -27,7 +27,12 @@ Same parameters and validation as `/sunmoon` (spec: `cookson_pro_web/docs/api-as
 {
   "query":  { "lat": 37.77, "lon": -122.42, "date": "2026-10-05", "tz": "America/Los_Angeles" },
   "status": "ok",
-  "window": { "start": "2026-10-05T19:46:00-07:00", "end": "2026-10-06T00:00:00-07:00" },
+  "window": {
+    "start": "2026-10-05T19:13:00-07:00",
+    "end": "2026-10-06T00:00:00-07:00",
+    "darkness": { "nautical": "2026-10-05T19:43:00-07:00", "astronomical": "2026-10-05T20:13:00-07:00" },
+    "darkest": "astronomical"
+  },
   "sun":  { "...": "identical to /sunmoon sun" },
   "moon": { "...": "identical to /sunmoon moon" },
   "clouds": {
@@ -60,6 +65,16 @@ Same parameters and validation as `/sunmoon` (spec: `cookson_pro_web/docs/api-as
           "endsInShadow": true
         }
       ]
+    },
+    {
+      "id": "saturn",
+      "name": "Saturn",
+      "kind": "planet",
+      "start": { "time": "2026-10-05T19:41:00-07:00", "altitude": 10.2, "azimuth": 95.4 },
+      "peak":  { "time": "2026-10-06T00:00:00-07:00", "altitude": 52.0, "azimuth": 157.3 },
+      "end":   { "time": "2026-10-06T00:00:00-07:00", "altitude": 52.0, "azimuth": 157.3 },
+      "magnitude": 0.2,
+      "constellation": "Cetus"
     }
   ],
   "unavailable": {}
@@ -72,7 +87,13 @@ Same parameters and validation as `/sunmoon` (spec: `cookson_pro_web/docs/api-as
 
 - **`query`, `sun`, `moon`**: exactly the `/sunmoon` response, so the existing Astro card components can be reused. These are present in every `200`, including `"na"`.
 - **`status`**: `"ok"`, or `"na"` when there is no evening viewing window. See [Not applicable](#not-applicable-status-na).
-- **`window`**: the viewing window, from sunset + 1 hour to local midnight (the start of the next local date). Timestamps use the offset of `tz`.
+- **`window`**: the viewing window, from civil dusk to local midnight (the start of the next local date). Timestamps use the offset of `tz`, at minute precision.
+  - `start` is civil dusk: when the sun is 6° below the horizon. The Moon, the bright planets and the ISS are visible from then. This is about 20 minutes after sunset at the equator and longer at higher latitudes and near the solstices. It is computed for the exact location and date, so no rule of thumb is needed.
+  - `darkness` says when the sky gets darker, so the card can say what is worth looking for and when:
+    - `nautical`: the sun is 12° down. Constellations and first-magnitude stars are visible.
+    - `astronomical`: the sun is 18° down. The sky is fully dark, so faint stars, the Milky Way, galaxies and nebulae are visible. This is at least 80 minutes after sunset (at the equator).
+    - Either is `null` when that depth isn't reached before `end`. Near midsummer at mid-to-high latitudes it never gets fully dark. For example, London on 21 June gets only as far as nautical twilight.
+  - `darkest`: the darkest stage reached in the window: `"civil"`, `"nautical"` or `"astronomical"`. Show `"civil"` or `"nautical"` as "Never fully dark tonight".
 - **`clouds`**: the hourly forecast from [Open-Meteo](https://open-meteo.com/), which is free and needs no key.
   - `hourly` holds the samples on the hour within the window. It also includes the last sample at or before `window.start`, so the opening of the window is covered. All cover values are percentages, 0..100. `low`/`mid`/`high` are cloud layers. High thin cloud is often still usable for bright objects.
   - `summary` is computed over `hourly`:
@@ -82,10 +103,16 @@ Same parameters and validation as `/sunmoon` (spec: `cookson_pro_web/docs/api-as
 - **`objects`**: things expected to be viewable during the window. Each entry has `id`, `name` and `kind`, plus fields for that kind. **Only objects that are actually viewable in the window are listed**, so `[]` means there's nothing to show. An object that is missing because its data source failed has a reason under `unavailable["objects.<id>"]`. Order is not significant yet.
   - **ISS** (`id: "iss"`, `kind: "satellite"`): `passes` lists each visible pass in time order. A pass counts as visible while the ISS is at least 10° above the horizon, the sun is at least 6° below the observer's horizon, and the ISS is in sunlight (not in Earth's shadow).
     - `start` / `peak` / `end`: `{ time, altitude, azimuth }`, in degrees with azimuth clockwise from true north. Times have second precision, because passes are only minutes long.
-    - Passes are **clipped to the window**. A pass already in progress when the window opens starts at `window.start`, so `start` can equal `peak`.
+    - Passes are **clipped to the window**. A pass already in progress when the window opens starts at `window.start`, so `start` can equal `peak`. Visible passes need the sun at least 6° down, the same as `window.start`, so clipping only happens at midnight in practice.
     - `endsInShadow`: `true` when the ISS fades out by entering Earth's shadow rather than setting. The card can show this as "vanishes at 25° in the NW".
     - `durationSeconds`: from `start` to `end`.
     - Orbit data (a TLE) comes from CelesTrak, with ARISS and tle.ivanstanojevic.me as fallbacks, and is cached for 6 hours. Predictions are only made within 5 days of that orbit data, because accuracy drops after that.
+  - **Planets** (`id`: `venus`, `mars`, `jupiter` or `saturn`; `kind: "planet"`): listed when the planet is at least 10° above the horizon at some point in the window. Mercury is left out because it is rarely far enough from the sun to be seen easily.
+    - `start` / `end`: the first and last minute in the window when the planet is at least 10° up, as `{ time, altitude, azimuth }`. They are clipped to the window like ISS passes, so `start.time == window.start` means it is already up when the window opens, and `end.time == window.end` means it is still up at midnight. Otherwise `end` is roughly when it sinks into the western sky.
+    - `peak`: its highest point in the window. This is often `start` or `end` when the planet is rising or setting all evening.
+    - `magnitude`: apparent visual magnitude at `peak` (lower is brighter; Venus is about -4, Saturn about 0 to 1).
+    - `constellation`: the IAU constellation it is in, e.g. "Cetus".
+    - Times have minute precision. Positions are computed locally (astronomy-engine), so planets are never listed in `unavailable`.
 - **`unavailable`**: when `status` is `"ok"`, maps a section name (or `objects.<id>`) to a human-readable reason for every section or object that could not be filled. It is `{}` when everything is present.
 
 ### Not applicable (`status: "na"`)
@@ -111,7 +138,7 @@ When the location has no evening viewing window on `date`, the response is "not 
 | Midnight sun (`sun.polar = "always_up"`) | "The sun does not set on this date." |
 | Polar night (`sun.polar = "always_down"`) | "The sun does not rise or set on this date." |
 | The sun rises but does not set (first day of midnight sun) | "No sunset on this date." |
-| Sunset + 1 h is after midnight (high latitude in summer) | "Sunset plus one hour is after midnight." |
+| The sun is not 6° down before midnight (high latitude in summer) | "It does not get dark before midnight." |
 
 The card can show the `reason` with the sun/moon details instead of a forecast.
 
@@ -147,4 +174,4 @@ Same as `/sunmoon`: `400` for invalid lat/lon/date/tz. The body uses the app-wid
 3. **Summary**: is mean/min/max/clearest enough, or would a single 0..100 "stargazing score" (combining cloud cover, moon illumination and moon-up time in the window) be more useful for the card?
 4. **Moon in the window**: should the API say whether the moon is above the horizon during the window, or is the client happy to work that out from `moon.rise`/`moon.set`?
 5. **ISS brightness**: should passes include an estimated magnitude? Most bright passes are already obvious from `peak.altitude`.
-6. **Next objects**: planets (visible ones, with rise/set and their altitude across the window) seem the natural next entries in `objects`. Should the ISS list also include the next visible pass after tonight when there is none tonight?
+6. **Next visible ISS pass**: should the ISS list also include the next visible pass after tonight when there is none tonight?

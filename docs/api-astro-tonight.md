@@ -1,6 +1,6 @@
 # API: Tonight (proposal)
 
-Stargazing conditions for one evening at a location: everything `/sunmoon` returns, plus a viewing window, the cloud forecast for that window, and the objects expected to be viewable in it (ISS passes and the naked-eye planets). The shape is meant to grow. New data sources (seeing, transparency, …) will be added as new top-level sections, and new kinds of object (bright stars, meteor showers, …) as new entries in `objects`, without changing the existing ones.
+Stargazing conditions for one evening at a location: everything `/sunmoon` returns, plus a viewing window, the cloud forecast for that window, and the objects expected to be viewable in it (ISS passes, the naked-eye planets and the bright stars). The shape is meant to grow. New data sources (seeing, transparency, …) will be added as new top-level sections, and new kinds of object (meteor showers, …) as new entries in `objects`, without changing the existing ones.
 
 Status: implemented in `cookson_pro_api` (`lib/service/tonight.js`). The shape is open for frontend feedback before anything depends on it.
 
@@ -75,6 +75,16 @@ Same parameters and validation as `/sunmoon` (spec: `cookson_pro_web/docs/api-as
       "end":   { "time": "2026-10-06T00:00:00-07:00", "altitude": 52.0, "azimuth": 157.3 },
       "magnitude": 0.2,
       "constellation": "Cetus"
+    },
+    {
+      "id": "vega",
+      "name": "Vega",
+      "kind": "star",
+      "start": { "time": "2026-10-05T19:43:00-07:00", "altitude": 79.2, "azimuth": 279.7 },
+      "peak":  { "time": "2026-10-05T19:43:00-07:00", "altitude": 79.2, "azimuth": 279.7 },
+      "end":   { "time": "2026-10-06T00:00:00-07:00", "altitude": 30.8, "azimuth": 297.5 },
+      "magnitude": 0.03,
+      "constellation": "Lyra"
     }
   ],
   "unavailable": {}
@@ -113,6 +123,10 @@ Same parameters and validation as `/sunmoon` (spec: `cookson_pro_web/docs/api-as
     - `magnitude`: apparent visual magnitude at `peak` (lower is brighter; Venus is about -4, Saturn about 0 to 1).
     - `constellation`: the IAU constellation it is in, e.g. "Cetus".
     - Times have minute precision. Positions are computed locally (astronomy-engine), so planets are never listed in `unavailable`.
+  - **Bright stars** (`kind: "star"`, `id` is the lowercase name with spaces as hyphens, e.g. `vega`, `kaus-australis`): the named stars of magnitude 2.0 or brighter (49 of them, from Sirius to Hamal, including Polaris and the brightest of the Big Dipper and Orion's belt). These are the stars that reliably show through suburban light pollution. Listed when the star is at least 15° up at some point between `window.darkness.nautical` and `window.end`. The cut-off is higher than for planets because haze and extra air near the horizon hide the fainter stars in the list. There are none when `darkness.nautical` is `null`. A mid-latitude evening typically has about 15.
+    - The fields are the same as for planets: `start` / `peak` / `end`, `magnitude` (a fixed catalog value) and `constellation`. `start.time == window.darkness.nautical` means the star is already up when stars come out.
+    - Stars come after the ISS and the planets in `objects`, brightest first.
+    - Computed locally from a built-in catalog, so stars are never listed in `unavailable`.
 - **`unavailable`**: when `status` is `"ok"`, maps a section name (or `objects.<id>`) to a human-readable reason for every section or object that could not be filled. It is `{}` when everything is present.
 
 ### Not applicable (`status: "na"`)

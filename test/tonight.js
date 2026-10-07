@@ -49,6 +49,8 @@ function mockOpenMeteo(t, options) {
 }
 
 const ids = (objects) => objects.map(o => o.id);
+// Ids of everything but stars, which are numerous and covered by their own test
+const nonStarIds = (objects) => ids(objects.filter(o => o.kind !== 'star'));
 
 // 2026-10-05T00:00:00-07:00
 const LA_MIDNIGHT = Date.parse('2026-10-05T07:00:00Z');
@@ -147,7 +149,7 @@ test.describe('Tonight API (/api/v1/astro/tonight)', () => {
 
     assert.strictEqual(response.body.status, 'ok');
     assert.strictEqual(response.body.clouds, null);
-    assert.deepStrictEqual(ids(response.body.objects), ['mars', 'jupiter', 'saturn'], 'planets do not depend on upstream data');
+    assert.deepStrictEqual(nonStarIds(response.body.objects), ['mars', 'jupiter', 'saturn'], 'planets do not depend on upstream data');
     assert.deepStrictEqual(response.body.unavailable, {
       'clouds': 'Cloud forecast is not available for this date.',
       'objects.iss': 'ISS pass predictions are only available for a few days around today.',
@@ -207,7 +209,7 @@ test.describe('Tonight API (/api/v1/astro/tonight)', () => {
       .query({ date: '2026-10-05', tz: 'America/Los_Angeles' })
       .expect(200);
 
-    assert.deepStrictEqual(ids(response.body.objects), ['saturn']);
+    assert.deepStrictEqual(nonStarIds(response.body.objects), ['saturn']);
     assert.deepStrictEqual(response.body.unavailable, {});
   });
 
@@ -239,7 +241,7 @@ test.describe('Tonight API (/api/v1/astro/tonight)', () => {
       .query({ date: '2026-10-08', tz: 'Australia/Sydney' })
       .expect(200);
 
-    assert.deepStrictEqual(ids(response.body.objects), ['venus', 'saturn']);
+    assert.deepStrictEqual(nonStarIds(response.body.objects), ['venus', 'saturn']);
     assert.deepStrictEqual(response.body.unavailable, { 'objects.iss': 'ISS orbit data could not be retrieved.' });
     assert.ok(response.body.clouds, 'clouds should still be filled');
     assert.strictEqual(calls.tle.length, 3);
@@ -283,6 +285,45 @@ test.describe('Tonight API (/api/v1/astro/tonight)', () => {
     for (const planet of planets) {
       assert.ok(planet.start.altitude >= 10 && planet.end.altitude >= 10);
       assert.ok(planet.peak.altitude >= planet.start.altitude && planet.peak.altitude >= planet.end.altitude);
+    }
+  });
+
+  test.it('should list bright stars above 15° from nautical darkness, brightest first', async (t) => {
+    mockOpenMeteo(t, { startUtcMs: LA_MIDNIGHT });
+
+    const response = await supertest(app)
+      .get('/api/v1/astro/tonight/37.77/-122.42')
+      .query({ date: '2026-10-05', tz: 'America/Los_Angeles' })
+      .expect(200);
+
+    const { window, objects } = response.body;
+    const stars = objects.filter(o => o.kind === 'star');
+    // Autumn evening sky from San Francisco; the winter stars (Capella, Aldebaran) rise late
+    assert.deepStrictEqual(ids(stars), [
+      'arcturus', 'vega', 'capella', 'altair', 'aldebaran', 'fomalhaut', 'deneb', 'elnath',
+      'alioth', 'dubhe', 'mirfak', 'kaus-australis', 'alkaid', 'menkalinan', 'polaris', 'hamal',
+    ]);
+
+    // Vega is nearly overhead when stars come out
+    const vega = stars[1];
+    assert.strictEqual(vega.start.time, window.darkness.nautical);
+    assert.deepStrictEqual(vega, {
+      id: 'vega',
+      name: 'Vega',
+      kind: 'star',
+      start: { time: '2026-10-05T19:43:00-07:00', altitude: 79.2, azimuth: vega.start.azimuth },
+      peak: { time: '2026-10-05T19:43:00-07:00', altitude: 79.2, azimuth: vega.peak.azimuth },
+      end: { time: '2026-10-06T00:00:00-07:00', altitude: 30.8, azimuth: vega.end.azimuth },
+      magnitude: 0.03,
+      constellation: 'Lyra',
+    });
+
+    // Polaris stays at about the observer's latitude
+    const polaris = stars.find(s => s.id === 'polaris');
+    assert.ok(Math.abs(polaris.peak.altitude - 37.77) < 1);
+    for (const star of stars) {
+      assert.ok(star.start.time >= window.darkness.nautical);
+      assert.ok(star.start.altitude >= 15 && star.end.altitude >= 15);
     }
   });
 

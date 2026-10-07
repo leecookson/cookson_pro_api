@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import supertest from 'supertest';
 import app from '../lib/app.js';
+import { clearMemoryCache } from '../lib/common/cache.js';
 
 
 test.describe('Location API (/api/v1/location)', () => {
@@ -192,6 +193,56 @@ test.describe('Location API (/api/v1/location)', () => {
 
     // The service should throw an error, which the app's central error handler catches.
     await supertest(app).get(`/api/v1/location/${mockIp}`).expect(500);
+  });
+
+  // --- Reverse geocoding (/api/v1/location/:lat/:lon) ---
+
+  // Mocks OpenWeatherMap's reverse geocoding with `places`; returns the URLs requested
+  const mockReverseGeocode = (t, places) => {
+    const calls = [];
+    t.mock.method(globalThis, 'fetch', async (url) => {
+      const u = new URL(url);
+      assert.strictEqual(`${u.origin}${u.pathname}`, 'https://api.openweathermap.org/geo/1.0/reverse');
+      calls.push(u);
+      return new Response(JSON.stringify(places), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    });
+    return calls;
+  };
+
+  test.it('should return the nearest place for coordinates, in the IP lookup\'s field names', async (t) => {
+    clearMemoryCache();
+    const calls = mockReverseGeocode(t, [{ name: 'Mill Valley', state: 'California', country: 'US', lat: 37.906, lon: -122.545 }]);
+
+    const response = await supertest(app).get('/api/v1/location/37.9061/-122.5450').expect(200);
+    assert.deepStrictEqual(response.body, {
+      status: 'success',
+      city: 'Mill Valley',
+      regionName: 'California',
+      country: 'United States',
+      countryCode: 'US',
+      lat: 37.9061,
+      lon: -122.545,
+    });
+    // Rounded to ~1 km for the lookup and its cache key
+    assert.strictEqual(calls[0].searchParams.get('lat'), '37.91');
+    assert.strictEqual(calls[0].searchParams.get('lon'), '-122.55');
+
+    // Nearby coordinates share the cached place
+    await supertest(app).get('/api/v1/location/37.9058/-122.5452').expect(200);
+    assert.strictEqual(calls.length, 1);
+  });
+
+  test.it('should return 404 when no place is near the coordinates', async (t) => {
+    clearMemoryCache();
+    mockReverseGeocode(t, []);
+    await supertest(app).get('/api/v1/location/0/-140').expect(404);
+  });
+
+  test.it('should return 400 for out-of-range coordinates without calling the provider', async (t) => {
+    const calls = mockReverseGeocode(t, []);
+    await supertest(app).get('/api/v1/location/91/0').expect(400);
+    await supertest(app).get('/api/v1/location/0/abc').expect(400);
+    assert.strictEqual(calls.length, 0);
   });
 
   test.after(async () => process.exit(0));

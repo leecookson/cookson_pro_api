@@ -288,7 +288,7 @@ test.describe('Tonight API (/api/v1/astro/tonight)', () => {
     }
   });
 
-  test.it('should list bright stars above 15° from nautical darkness, brightest first', async (t) => {
+  test.it('should list the 20 brightest stars above 15° from nautical darkness, brightest first', async (t) => {
     mockOpenMeteo(t, { startUtcMs: LA_MIDNIGHT });
 
     const response = await supertest(app)
@@ -298,10 +298,12 @@ test.describe('Tonight API (/api/v1/astro/tonight)', () => {
 
     const { window, objects } = response.body;
     const stars = objects.filter(o => o.kind === 'star');
-    // Autumn evening sky from San Francisco; the winter stars (Capella, Aldebaran) rise late
+    // Autumn evening sky from San Francisco; the winter stars (Capella, Aldebaran) rise late.
+    // Alpheratz (2.06) is up too, but is the 21st brightest.
     assert.deepStrictEqual(ids(stars), [
       'arcturus', 'vega', 'capella', 'altair', 'aldebaran', 'fomalhaut', 'deneb', 'elnath',
       'alioth', 'dubhe', 'mirfak', 'kaus-australis', 'alkaid', 'menkalinan', 'polaris', 'hamal',
+      'mizar', 'diphda', 'nunki', 'mirach',
     ]);
 
     // Vega is nearly overhead when stars come out

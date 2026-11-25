@@ -7,10 +7,10 @@ Status: implemented in `cookson_pro_api` (`lib/service/tonight.js`). The shape i
 ## Request
 
 ```
-GET /api/v1/astro/tonight/:lat/:lon?date=YYYY-MM-DD&tz=<IANA zone>
+GET /api/v1/astro/tonight/:lat/:lon?date=YYYY-MM-DD&tz=<IANA zone>&until=midnight|dawn
 ```
 
-Same parameters and validation as `/sunmoon` (spec: `cookson_pro_web/docs/api-astro-sunmoon.md`):
+Same parameters and validation as `/sunmoon` (spec: `cookson_pro_web/docs/api-astro-sunmoon.md`), plus `until`:
 
 | Param | In | Required | Notes |
 |---|---|---|---|
@@ -18,6 +18,7 @@ Same parameters and validation as `/sunmoon` (spec: `cookson_pro_web/docs/api-as
 | `lon` | path | yes | Decimal degrees, -180..180 |
 | `date` | query | no | Local calendar date in `tz` whose evening you want. Default: today in `tz` |
 | `tz` | query | no | IANA zone. Default: `UTC` |
+| `until` | query | no | Where the window ends: `midnight` (local midnight) or `dawn` (civil dawn the next morning). Default: `midnight`. Anything else is a `400` |
 
 "Tonight" means the evening of `date`. A request made at 01:00 without `date` returns the coming evening, not the night that is ending.
 
@@ -97,13 +98,16 @@ Same parameters and validation as `/sunmoon` (spec: `cookson_pro_web/docs/api-as
 
 - **`query`, `sun`, `moon`**: exactly the `/sunmoon` response, so the existing Astro card components can be reused. These are present in every `200`, including `"na"`.
 - **`status`**: `"ok"`, or `"na"` when there is no evening viewing window. See [Not applicable](#not-applicable-status-na).
-- **`window`**: the viewing window, from civil dusk to local midnight (the start of the next local date). Timestamps use the offset of `tz`, at minute precision.
+- **`window`**: the viewing window, from civil dusk to local midnight (the start of the next local date), or with `until=dawn` to civil dawn the next morning. Timestamps use the offset of `tz`, at minute precision.
+  - `until`: `"midnight"` or `"dawn"`, echoing the request.
+  - `end` is local midnight, or with `until=dawn` civil dawn: when the sun climbs back to 6° below the horizon. Either way the window must open before midnight, or the response is `"na"`.
   - `start` is civil dusk: when the sun is 6° below the horizon. The Moon, the bright planets and the ISS are visible from then. This is about 20 minutes after sunset at the equator and longer at higher latitudes and near the solstices. It is computed for the exact location and date, so no rule of thumb is needed.
   - `darkness` says when the sky gets darker, so the card can say what is worth looking for and when:
     - `nautical`: the sun is 12° down. Constellations and first-magnitude stars are visible.
     - `astronomical`: the sun is 18° down. The sky is fully dark, so faint stars, the Milky Way, galaxies and nebulae are visible. This is at least 80 minutes after sunset (at the equator).
     - Either is `null` when that depth isn't reached before `end`. Near midsummer at mid-to-high latitudes it never gets fully dark. For example, London on 21 June gets only as far as nautical twilight.
   - `darkest`: the darkest stage reached in the window: `"civil"`, `"nautical"` or `"astronomical"`. Show `"civil"` or `"nautical"` as "Never fully dark tonight".
+  - `dawn` (only with `until=dawn`): when the sky brightens again, mirroring `darkness`. `astronomical` is when the sun climbs back to 18° down, ending full darkness, and `nautical` when it reaches 12° down, when stars fade. Each is `null` when the matching `darkness` stage is `null`.
 - **`clouds`**: the hourly forecast from [Open-Meteo](https://open-meteo.com/), which is free and needs no key.
   - `hourly` holds the samples on the hour within the window. It also includes the last sample at or before `window.start`, so the opening of the window is covered. All cover values are percentages, 0..100. `low`/`mid`/`high` are cloud layers. High thin cloud is often still usable for bright objects.
   - `summary` is computed over `hourly`:
@@ -118,12 +122,12 @@ Same parameters and validation as `/sunmoon` (spec: `cookson_pro_web/docs/api-as
     - `durationSeconds`: from `start` to `end`.
     - Orbit data (a TLE) comes from CelesTrak, with ARISS and tle.ivanstanojevic.me as fallbacks, and is cached for 6 hours. Predictions are only made within 5 days of that orbit data, because accuracy drops after that.
   - **Planets** (`id`: `venus`, `mars`, `jupiter` or `saturn`; `kind: "planet"`): listed when the planet is at least 10° above the horizon at some point in the window. Mercury is left out because it is rarely far enough from the sun to be seen easily.
-    - `start` / `end`: the first and last minute in the window when the planet is at least 10° up, as `{ time, altitude, azimuth }`. They are clipped to the window like ISS passes, so `start.time == window.start` means it is already up when the window opens, and `end.time == window.end` means it is still up at midnight. Otherwise `end` is roughly when it sinks into the western sky.
+    - `start` / `end`: the first and last minute in the window when the planet is at least 10° up, as `{ time, altitude, azimuth }`. They are clipped to the window like ISS passes, so `start.time == window.start` means it is already up when the window opens, and `end.time == window.end` means it is still up when the window closes. Otherwise `end` is roughly when it sinks into the western sky.
     - `peak`: its highest point in the window. This is often `start` or `end` when the planet is rising or setting all evening.
     - `magnitude`: apparent visual magnitude at `peak` (lower is brighter; Venus is about -4, Saturn about 0 to 1).
     - `constellation`: the IAU constellation it is in, e.g. "Cetus".
     - Times have minute precision. Positions are computed locally (astronomy-engine), so planets are never listed in `unavailable`.
-  - **Bright stars** (`kind: "star"`, `id` is the lowercase name with spaces as hyphens, e.g. `vega`, `kaus-australis`): drawn from the named stars of magnitude 2.5 or brighter (83 of them, from Sirius to Markab, including Polaris, the Big Dipper, Orion's belt, Cassiopeia's W and the Great Square of Pegasus). These are the stars that show through suburban light pollution. A star qualifies when it is at least 15° up at some point between `window.darkness.nautical` and `window.end`. The cut-off is higher than for planets because haze and extra air near the horizon hide the fainter stars in the list. **At most 20 are listed: the brightest that qualify.** A mid-latitude evening usually fills all 20. There are none when `darkness.nautical` is `null`.
+  - **Bright stars** (`kind: "star"`, `id` is the lowercase name with spaces as hyphens, e.g. `vega`, `kaus-australis`): drawn from the named stars of magnitude 2.5 or brighter (83 of them, from Sirius to Markab, including Polaris, the Big Dipper, Orion's belt, Cassiopeia's W and the Great Square of Pegasus). These are the stars that show through suburban light pollution. A star qualifies when it is at least 15° up at some point between `window.darkness.nautical` and `window.end`, or `window.dawn.nautical` with `until=dawn`, when stars fade. Its `start` / `end` are clipped to that span. The cut-off is higher than for planets because haze and extra air near the horizon hide the fainter stars in the list. **At most 20 are listed: the brightest that qualify.** A mid-latitude evening usually fills all 20. There are none when `darkness.nautical` is `null`.
     - The fields are the same as for planets: `start` / `peak` / `end`, `magnitude` (a fixed catalog value) and `constellation`. `start.time == window.darkness.nautical` means the star is already up when stars come out.
     - Stars come after the ISS and the planets in `objects`, brightest first.
     - Computed locally from a built-in catalog, so stars are never listed in `unavailable`.
@@ -184,7 +188,7 @@ Same as `/sunmoon`: `400` for invalid lat/lon/date/tz. The body uses the app-wid
 ## Open questions for frontend
 
 1. **Polar night**: returns `"na"` for now. It is dark all day, so a later version could give it a window (for example a fixed 18:00 to midnight) instead.
-2. **Window end**: midnight cuts off the darkest hours. Do we want an option to extend to astronomical dawn (`?until=dawn`)?
+2. **Window end**: resolved, `?until=dawn` runs the window to civil dawn.
 3. **Summary**: is mean/min/max/clearest enough, or would a single 0..100 "stargazing score" (combining cloud cover, moon illumination and moon-up time in the window) be more useful for the card?
 4. **Moon in the window**: should the API say whether the moon is above the horizon during the window, or is the client happy to work that out from `moon.rise`/`moon.set`?
 5. **ISS brightness**: should passes include an estimated magnitude? Most bright passes are already obvious from `peak.altitude`.

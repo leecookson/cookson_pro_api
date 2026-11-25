@@ -84,6 +84,7 @@ test.describe('Tonight API (/api/v1/astro/tonight)', () => {
     assert.deepStrictEqual(window, {
       start: '2026-10-05T19:13:00-07:00',
       end: '2026-10-06T00:00:00-07:00',
+      until: 'midnight',
       darkness: { nautical: '2026-10-05T19:43:00-07:00', astronomical: '2026-10-05T20:13:00-07:00' },
       darkest: 'astronomical',
     });
@@ -361,12 +362,14 @@ test.describe('Tonight API (/api/v1/astro/tonight)', () => {
     ['London: never astronomically dark', [51.5, -0.13], 'Europe/London', {
       start: '2026-06-21T22:09:00+01:00',
       end: '2026-06-22T00:00:00+01:00',
+      until: 'midnight',
       darkness: { nautical: '2026-06-21T23:24:00+01:00', astronomical: null },
       darkest: 'nautical',
     }],
     ['Stockholm: only civil twilight before midnight', [59.33, 18.07], 'Europe/Stockholm', {
       start: '2026-06-21T23:40:00+02:00',
       end: '2026-06-22T00:00:00+02:00',
+      until: 'midnight',
       darkness: { nautical: null, astronomical: null },
       darkest: 'civil',
     }],
@@ -385,6 +388,59 @@ test.describe('Tonight API (/api/v1/astro/tonight)', () => {
       assert.deepStrictEqual(response.body.window, expected);
     });
   }
+
+  test.it('should run the window to civil dawn with until=dawn', async (t) => {
+    mockOpenMeteo(t, { startUtcMs: LA_MIDNIGHT });
+
+    const response = await supertest(app)
+      .get('/api/v1/astro/tonight/37.77/-122.42')
+      .query({ date: '2026-10-05', tz: 'America/Los_Angeles', until: 'dawn' })
+      .expect(200);
+
+    const { window, clouds, objects } = response.body;
+    // The morning stages mirror the evening ones, 30 minutes apart
+    assert.deepStrictEqual(window, {
+      start: '2026-10-05T19:13:00-07:00',
+      end: '2026-10-06T06:44:00-07:00',
+      until: 'dawn',
+      darkness: { nautical: '2026-10-05T19:43:00-07:00', astronomical: '2026-10-05T20:13:00-07:00' },
+      darkest: 'astronomical',
+      dawn: { astronomical: '2026-10-06T05:43:00-07:00', nautical: '2026-10-06T06:13:00-07:00' },
+    });
+
+    // Hourly clouds run through the night to the last hour before dawn
+    assert.strictEqual(clouds.hourly.at(-1).time, '2026-10-06T06:00:00-07:00');
+
+    // Stars fade at nautical dawn, so none is listed past it
+    const stars = objects.filter(o => o.kind === 'star');
+    assert.strictEqual(stars.length, 20);
+    for (const star of stars) assert.ok(star.end.time <= window.dawn.nautical);
+    for (const o of objects.filter(o => o.kind === 'planet')) assert.ok(o.end.time <= window.end);
+  });
+
+  test.it('should report no astronomical dawn when it never gets fully dark', async (t) => {
+    mockOpenMeteo(t, { startUtcMs: 0 });
+
+    const response = await supertest(app)
+      .get('/api/v1/astro/tonight/51.5/-0.13')
+      .query({ date: '2026-06-21', tz: 'Europe/London', until: 'dawn' })
+      .expect(200);
+
+    const { window } = response.body;
+    assert.strictEqual(window.end, '2026-06-22T03:56:00+01:00');
+    assert.strictEqual(window.darkest, 'nautical');
+    assert.deepStrictEqual(window.dawn, { astronomical: null, nautical: '2026-06-22T02:41:00+01:00' });
+  });
+
+  test.it('should return 400 for an unknown "until"', async (t) => {
+    const calls = mockOpenMeteo(t, { startUtcMs: 0 });
+    const response = await supertest(app)
+      .get('/api/v1/astro/tonight/37.77/-122.42')
+      .query({ until: 'noon' })
+      .expect(400);
+    assert.match(response.body.message, /"until" must be one of "midnight", "dawn"/);
+    assert.strictEqual(calls.length, 0);
+  });
 
   test.it('should return status "na" when the sun is not 6° down before midnight', async (t) => {
     const calls = mockOpenMeteo(t, { startUtcMs: 0 });
